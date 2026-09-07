@@ -7,44 +7,14 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#FF6B9D">
   <style>
-    body { 
-      font-family: 'Segoe UI', Arial; 
-      background: linear-gradient(135deg, #fff0f5, #ffe4ec); 
-      padding: 20px; 
-      text-align: center; 
-      min-height: 100vh;
-    }
+    body { font-family: 'Segoe UI'; background: linear-gradient(135deg, #fff0f5, #ffe4ec); padding: 20px; text-align: center; min-height: 100vh; }
     h1 { color: #FF6B9D; }
     .box { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
-    input { 
-      padding: 12px; 
-      width: 70%; 
-      border-radius: 10px; 
-      border: 2px solid #FF6B9D; 
-      font-size: 16px;
-    }
-    button { 
-      padding: 12px 20px; 
-      border-radius: 10px; 
-      border: none; 
-      background: #FF6B9D; 
-      color: white; 
-      cursor: pointer; 
-      font-weight: bold;
-    }
-    button:hover { background: #e05588; }
+    input { padding: 12px; width: 70%; border-radius: 10px; border: 2px solid #FF6B9D; font-size: 16px; }
+    button { padding: 12px 20px; border-radius: 10px; border: none; background: #FF6B9D; color: white; cursor: pointer; font-weight: bold; }
     #catatan { margin-top: 20px; text-align: left; max-width: 500px; margin: 20px auto; }
-    .item { 
-      background: white; 
-      padding: 12px; 
-      margin: 8px 0; 
-      border-radius: 10px; 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-    .hapus-btn { background: #ff4d6d; padding: 6px 12px; font-size: 14px; }
+    .item { background: white; padding: 12px; margin: 8px 0; border-radius: 10px; display: flex; justify-content: space-between; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .hapus-btn { background: #ff4d6d; padding: 6px 12px; font-size: 14px; border: none; color: white; border-radius: 8px; }
   </style>
 </head>
 <body>
@@ -56,47 +26,48 @@
   <div id="catatan"></div>
 
   <script>
-    // Muat data dari localStorage
+    let db;
+    // Buka database
+    let request = indexedDB.open("CatatanDB", 1);
+    request.onupgradeneeded = e => {
+      db = e.target.result;
+      db.createObjectStore("catatan", {keyPath: "id", autoIncrement: true});
+    };
+    request.onsuccess = e => { db = e.target.result; tampilkanCatatan(); }
+
     function tampilkanCatatan() {
-      let data = JSON.parse(localStorage.getItem('catatan')) || [];
-      if(data.length === 0) {
-        document.getElementById('catatan').innerHTML = '<p style="color:gray;">Belum ada catatan</p>';
-        return;
+      let tx = db.transaction("catatan", "readonly");
+      let store = tx.objectStore("catatan");
+      let req = store.getAll();
+      req.onsuccess = () => {
+        let data = req.result;
+        if(data.length === 0) {
+          document.getElementById('catatan').innerHTML = '<p style="color:gray;">Belum ada catatan</p>';
+          return;
+        }
+        document.getElementById('catatan').innerHTML = data.map(c => 
+          `<div class="item">${c.teks} <button class="hapus-btn" onclick="hapus(${c.id})">Hapus</button></div>`
+        ).join('');
       }
-      document.getElementById('catatan').innerHTML = data.map((c,i) => 
-        `<div class="item">${c} <button class="hapus-btn" onclick="hapus(${i})">Hapus</button></div>`
-      ).join('');
     }
 
-    // Tambah catatan baru
     function tambahCatatan() {
       let input = document.getElementById('inputCatatan');
       if(input.value.trim() === '') return alert('Isi dulu catatannya! 💌');
-      
-      let data = JSON.parse(localStorage.getItem('catatan')) || [];
-      data.push(input.value);
-      localStorage.setItem('catatan', JSON.stringify(data));
-      input.value = '';
-      tampilkanCatatan();
+      let tx = db.transaction("catatan", "readwrite");
+      let store = tx.objectStore("catatan");
+      store.add({teks: input.value});
+      tx.oncomplete = () => { input.value = ''; tampilkanCatatan(); }
     }
 
-    // Hapus catatan
-    function hapus(i) {
-      let data = JSON.parse(localStorage.getItem('catatan')) || [];
-      data.splice(i,1);
-      localStorage.setItem('catatan', JSON.stringify(data));
-      tampilkanCatatan();
+    function hapus(id) {
+      let tx = db.transaction("catatan", "readwrite");
+      let store = tx.objectStore("catatan");
+      store.delete(id);
+      tx.oncomplete = () => tampilkanCatatan();
     }
 
-    // Daftarin service worker biar bisa offline
-    if('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js');
-      })
-    }
-
-    // Jalanin pas pertama buka
-    tampilkanCatatan();
+    if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
   </script>
 </body>
 </html>
