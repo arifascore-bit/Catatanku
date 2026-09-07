@@ -3,68 +3,78 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Catatanku</title>
+  <title>Catatanku Keuangan</title>
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#FF6B9D">
+  <meta name="theme-color" content="#4CAF50">
   <style>
-    body { font-family: 'Segoe UI'; background: linear-gradient(135deg, #fff0f5, #ffe4ec); padding: 20px; text-align: center; min-height: 100vh; }
-    h1 { color: #FF6B9D; }
-    .box { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
-    input { padding: 12px; width: 70%; border-radius: 10px; border: 2px solid #FF6B9D; font-size: 16px; }
-    button { padding: 12px 20px; border-radius: 10px; border: none; background: #FF6B9D; color: white; cursor: pointer; font-weight: bold; }
-    #catatan { margin-top: 20px; text-align: left; max-width: 500px; margin: 20px auto; }
+    body { font-family: 'Segoe UI'; background: linear-gradient(135deg, #e8f5e9, #c8e6c9); padding: 20px; text-align: center; }
+    h1 { color: #2E7D32; }
+    .saldo { font-size: 24px; font-weight: bold; color: #2E7D32; background: white; padding: 15px; border-radius: 15px; margin-bottom: 20px; }
+    .box { background: white; padding: 15px; border-radius: 15px; margin-bottom: 15px; }
+    input, select { padding: 12px; width: 90%; border-radius: 10px; border: 2px solid #4CAF50; font-size: 16px; margin: 5px 0; }
+    button { padding: 12px 20px; border-radius: 10px; border: none; background: #4CAF50; color: white; cursor: pointer; font-weight: bold; width: 95%; margin-top: 10px; }
+    .pemasukan { color: green; } .pengeluaran { color: red; }
+    #riwayat { text-align: left; max-width: 500px; margin: 20px auto; }
     .item { background: white; padding: 12px; margin: 8px 0; border-radius: 10px; display: flex; justify-content: space-between; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-    .hapus-btn { background: #ff4d6d; padding: 6px 12px; font-size: 14px; border: none; color: white; border-radius: 8px; }
   </style>
 </head>
 <body>
-  <h1>💖 Catatanku 💖</h1>
+  <h1>💰 Catatanku Keuangan 💰</h1>
+  <div class="saldo">Saldo: Rp <span id="totalSaldo">0</span></div>
+
   <div class="box">
-    <input type="text" id="inputCatatan" placeholder="Tulis catatan...">
-    <button onclick="tambahCatatan()">Simpan</button>
+    <input type="text" id="keterangan" placeholder="Keterangan: Gaji, Jajan, dll">
+    <input type="number" id="jumlah" placeholder="Jumlah: 50000">
+    <select id="jenis">
+      <option value="pemasukan">Pemasukan</option>
+      <option value="pengeluaran">Pengeluaran</option>
+    </select>
+    <button onclick="tambahData()">Simpan</button>
   </div>
-  <div id="catatan"></div>
+
+  <h3>Riwayat</h3>
+  <div id="riwayat"></div>
 
   <script>
     let db;
-    // Buka database
-    let request = indexedDB.open("CatatanDB", 1);
+    let request = indexedDB.open("KeuanganDB", 1);
     request.onupgradeneeded = e => {
       db = e.target.result;
-      db.createObjectStore("catatan", {keyPath: "id", autoIncrement: true});
+      db.createObjectStore("transaksi", {keyPath: "id", autoIncrement: true});
     };
-    request.onsuccess = e => { db = e.target.result; tampilkanCatatan(); }
+    request.onsuccess = e => { db = e.target.result; tampilkanData(); }
 
-    function tampilkanCatatan() {
-      let tx = db.transaction("catatan", "readonly");
-      let store = tx.objectStore("catatan");
+    function tampilkanData() {
+      let tx = db.transaction("transaksi", "readonly");
+      let store = tx.objectStore("transaksi");
       let req = store.getAll();
       req.onsuccess = () => {
         let data = req.result;
-        if(data.length === 0) {
-          document.getElementById('catatan').innerHTML = '<p style="color:gray;">Belum ada catatan</p>';
-          return;
-        }
-        document.getElementById('catatan').innerHTML = data.map(c => 
-          `<div class="item">${c.teks} <button class="hapus-btn" onclick="hapus(${c.id})">Hapus</button></div>`
-        ).join('');
+        let saldo = 0;
+        let html = '';
+        data.forEach(t => {
+          saldo += t.jenis === 'pemasukan' ? t.jumlah : -t.jumlah;
+          html += `<div class="item"><div>${t.keterangan} <br><small class="${t.jenis}">${t.jenis}</small></div><div class="${t.jenis}">Rp ${t.jumlah.toLocaleString()}</div></div>`;
+        });
+        document.getElementById('riwayat').innerHTML = html || '<p style="color:gray;">Belum ada transaksi</p>';
+        document.getElementById('totalSaldo').innerText = saldo.toLocaleString();
       }
     }
 
-    function tambahCatatan() {
-      let input = document.getElementById('inputCatatan');
-      if(input.value.trim() === '') return alert('Isi dulu catatannya! 💌');
-      let tx = db.transaction("catatan", "readwrite");
-      let store = tx.objectStore("catatan");
-      store.add({teks: input.value});
-      tx.oncomplete = () => { input.value = ''; tampilkanCatatan(); }
-    }
+    function tambahData() {
+      let ket = document.getElementById('keterangan').value;
+      let jum = parseInt(document.getElementById('jumlah').value);
+      let jen = document.getElementById('jenis').value;
+      if(ket === '' || !jum) return alert('Isi semua dulu!');
 
-    function hapus(id) {
-      let tx = db.transaction("catatan", "readwrite");
-      let store = tx.objectStore("catatan");
-      store.delete(id);
-      tx.oncomplete = () => tampilkanCatatan();
+      let tx = db.transaction("transaksi", "readwrite");
+      let store = tx.objectStore("transaksi");
+      store.add({keterangan: ket, jumlah: jum, jenis: jen});
+      tx.oncomplete = () => { 
+        document.getElementById('keterangan').value = ''; 
+        document.getElementById('jumlah').value = '';
+        tampilkanData(); 
+      }
     }
 
     if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
